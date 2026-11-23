@@ -1,0 +1,8 @@
+{
+  "name": "clearcall",
+  "version": "0.1.0",
+  "description": "Voice calls with in-call text and spell-out, so letters and numbers are never misheard",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "^4.19.2", "socket.io": "^4.7.5" }
+}

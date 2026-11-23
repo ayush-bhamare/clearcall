@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClearCall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EEF2; --surface:#FFFFFF; --ink:#10202E; --muted:#566677; --line:#C7D2DB;
+  --call:#14805A; --end:#B3322A; --signal:#F2B01E; --signal-soft:#FFF4D6;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:17px;line-height:1.4}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.app{max-width:480px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:var(--bg)}
+.hidden{display:none!important}
+
+/* Join screen */
+.join{margin:auto 0;padding:28px 22px}
+.join h1{font-size:2rem;margin:0 0 6px}
+.join p{margin:0 0 22px;color:var(--muted);max-width:34ch}
+.join label{display:block;font-weight:700;margin-bottom:6px}
+.join input{width:100%;padding:14px;border:2px solid var(--line);border-radius:10px;background:var(--surface);font-size:1.1rem}
+.join .primary{margin-top:14px;width:100%;padding:15px;border:0;border-radius:10px;background:var(--call);color:#fff;font-weight:700;font-size:1.05rem}
+.join small{display:block;margin-top:18px;color:var(--muted)}
+#joinError{color:var(--end);margin-top:10px;min-height:1.4em}
+
+/* Call bar */
+.bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--ink);color:#fff}
+.bar .who{flex:1;min-width:0}
+.bar .who b{display:block}
+.bar .who span{font-size:.9rem;opacity:.8}
+.round{width:46px;height:46px;border-radius:50%;border:0;background:#2B3E50;color:#fff;font-weight:700}
+.round[aria-pressed="true"]{background:var(--signal);color:var(--ink)}
+.round.end{background:var(--end)}
+
+/* Messages */
+.feed{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:30ch}
+.msg{max-width:88%;padding:10px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);align-self:flex-start;word-break:break-word}
+.msg.mine{align-self:flex-end;background:var(--ink);color:#fff;border-color:var(--ink)}
+.msg .meta{display:block;margin-top:6px;font-size:.85rem;color:var(--muted)}
+.msg.mine .meta{color:#B8C6D3}
+.msg .meta.ok{color:var(--call);font-weight:700}
+.msg.mine .meta.ok{color:#7BE0B5}
+.tiles{display:flex;flex-wrap:wrap;gap:6px}
+.tile{min-width:52px;padding:6px 6px 5px;border-radius:8px;text-align:center;background:var(--surface);color:var(--ink);border:2px solid var(--ink)}
+.tile .ch{display:block;font-size:2rem;font-weight:700;line-height:1.1}
+.tile .ph{display:block;font-size:.75rem;color:var(--muted)}
+.gap{width:14px}
+.gotit{margin-top:10px;padding:10px 14px;border:0;border-radius:8px;background:var(--call);color:#fff;font-weight:700}
+
+/* Suggestion chip */
+.suggest{margin:0 16px 8px;padding:10px 12px;background:var(--signal-soft);border:2px solid var(--signal);border-radius:12px;display:flex;align-items:center;gap:10px}
+.suggest p{margin:0;flex:1}
+.suggest button{padding:8px 12px;border-radius:8px;border:0;font-weight:700}
+.suggest .yes{background:var(--ink);color:#fff}
+.suggest .no{background:transparent;text-decoration:underline}
+
+/* Composer */
+.composer{background:var(--surface);border-top:1px solid var(--line);padding:10px 16px 16px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button{flex:1;padding:9px;border-radius:8px;border:2px solid var(--line);background:transparent;font-weight:700}
+.tabs button[aria-selected="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.row{display:flex;gap:8px}
+.row input{flex:1;min-width:0;padding:13px;border:2px solid var(--line);border-radius:10px}
+.row input.spell{text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.row .send{padding:0 18px;border:0;border-radius:10px;background:var(--call);color:#fff;font-weight:700}
+.tools{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.9rem;color:var(--muted)}
+.tools label{display:flex;align-items:center;gap:8px}
+@media (prefers-reduced-motion:no-preference){.msg{animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section class="join" id="joinView">
+    <h1>ClearCall</h1>
+    <p>Talk by voice. Type or spell out anything that is hard to hear, without leaving the call.</p>
+    <label for="code">Call code</label>
+    <input id="code" autocomplete="off" placeholder="For example: pune42">
+    <button class="primary" id="joinBtn">Start call</button>
+    <div id="joinError" role="alert"></div>
+    <small>Share the same code with the other person. The first to join waits; the second starts the call.</small>
+  </section>
+
+  <section id="callView" class="hidden" style="display:flex;flex-direction:column;height:100%">
+    <div class="bar">
+      <div class="who"><b id="status">Waiting for the other person</b><span id="timer">Code: <span id="roomLabel"></span></span></div>
+      <button class="round" id="muteBtn" aria-pressed="false" aria-label="Mute microphone">Mute</button>
+      <button class="round end" id="endBtn" aria-label="End call">End</button>
+    </div>
+
+    <div class="feed" id="feed" aria-live="polite">
+      <div class="empty" id="empty">Messages and spelled-out details appear here during the call.</div>
+    </div>
+
+    <div class="suggest hidden" id="suggest">
+      <p id="suggestText"></p>
+      <button class="yes" id="suggestYes">Send</button>
+      <button class="no" id="suggestNo">Dismiss</button>
+    </div>
+
+    <div class="composer">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabChat" aria-selected="true">Message</button>
+        <button role="tab" id="tabSpell" aria-selected="false">Spell out</button>
+      </div>
+      <div class="row">
+        <input id="input" autocomplete="off" placeholder="Type a message" maxlength="300">
+        <button class="send" id="sendBtn">Send</button>
+      </div>
+      <div class="tools">
+        <label><input type="checkbox" id="listenToggle"> Suggest from what I say</label>
+        <span id="listenState"></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<audio id="remoteAudio" autoplay></audio>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const NATO = {A:'Alpha',B:'Bravo',C:'Charlie',D:'Delta',E:'Echo',F:'Foxtrot',G:'Golf',H:'Hotel',I:'India',J:'Juliet',K:'Kilo',L:'Lima',M:'Mike',N:'November',O:'Oscar',P:'Papa',Q:'Quebec',R:'Romeo',S:'Sierra',T:'Tango',U:'Uniform',V:'Victor',W:'Whiskey',X:'X-ray',Y:'Yankee',Z:'Zulu'};
+const DIGITS = {0:'Zero',1:'One',2:'Two',3:'Three',4:'Four',5:'Five',6:'Six',7:'Seven',8:'Eight',9:'Nine'};
+const NATO_REV = Object.fromEntries(Object.entries(NATO).map(([k,v]) => [v.toLowerCase().replace('-',''), k]));
+const NUM_REV = Object.fromEntries(Object.entries(DIGITS).map(([k,v]) => [v.toLowerCase(), k]));
+NUM_REV.oh = '0';
+
+const socket = io();
+let pc, localStream, room, mode = 'chat', timerId, startedAt;
+let chain = Promise.resolve();
+const statusEls = {};
+
+/* ---------- Joining and calling ---------- */
+$('joinBtn').onclick = join;
+$('code').addEventListener('keydown', (e) => e.key === 'Enter' && join());
+
+async function join() {
+  room = $('code').value.trim().toLowerCase();
+  if (!room) { $('joinError').textContent = 'Enter a call code first.'; return; }
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    $('joinError').textContent = 'Microphone blocked. Allow microphone access and try again. (On phones, the page must open over https.)';
+    return;
+  }
+  socket.emit('join', room);
+}
+
+socket.on('full', () => { $('joinError').textContent = 'That call already has two people. Use a different code.'; });
+
+socket.on('joined', async ({ initiator }) => {
+  $('joinView').classList.add('hidden');
+  $('callView').classList.remove('hidden');
+  $('roomLabel').textContent = room;
+  makePeer();
+  if (initiator) {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('signal', { sdp: pc.localDescription });
+  }
+});
+
+function makePeer() {
+  pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+  pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { candidate: e.candidate });
+  pc.ontrack = (e) => { $('remoteAudio').srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') { $('status').textContent = 'On call'; startTimer(); }
+    if (['failed', 'disconnected'].includes(pc.connectionState)) $('status').textContent = 'Connection lost';
+  };
+}
+
+socket.on('signal', (d) => { chain = chain.then(() => handleSignal(d)).catch(console.error); });
+async function handleSignal(d) {
+  if (d.sdp) {
+    await pc.setRemoteDescription(d.sdp);
+    if (d.sdp.type === 'offer') {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('signal', { sdp: pc.localDescription });
+    }
+  } else if (d.candidate) {
+    try { await pc.addIceCandidate(d.candidate); } catch (e) {}
+  }
+}
+
+socket.on('peer-left', () => { $('status').textContent = 'The other person left'; });
+
+function startTimer() {
+  if (timerId) return;
+  startedAt = Date.now();
+  timerId = setInterval(() => {
+    const s = Math.floor((Date.now() - startedAt) / 1000);
+    $('timer').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }, 1000);
+}
+
+$('muteBtn').onclick = () => {
+  const track = localStream.getAudioTracks()[0];
+  track.enabled = !track.enabled;
+  $('muteBtn').setAttribute('aria-pressed', String(!track.enabled));
+  $('muteBtn').textContent = track.enabled ? 'Mute' : 'Unmute';
+};
+$('endBtn').onclick = () => location.reload();
+
+/* ---------- Messages ---------- */
+function setMode(m) {
+  mode = m;
+  $('tabChat').setAttribute('aria-selected', String(m === 'chat'));
+  $('tabSpell').setAttribute('aria-selected', String(m === 'spell'));
+  $('input').classList.toggle('spell', m === 'spell');
+  $('input').placeholder = m === 'chat' ? 'Type a message' : 'Type the letters and numbers, e.g. B204';
+  $('input').focus();
+}
+$('tabChat').onclick = () => setMode('chat');
+$('tabSpell').onclick = () => setMode('spell');
+$('sendBtn').onclick = sendFromInput;
+$('input').addEventListener('keydown', (e) => e.key === 'Enter' && sendFromInput());
+
+function sendFromInput() {
+  const text = $('input').value.trim();
+  if (!text) return;
+  sendMessage(mode === 'spell' ? 'spell' : 'chat', mode === 'spell' ? text.toUpperCase() : text);
+  $('input').value = '';
+}
+
+function sendMessage(kind, text) {
+  const m = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, text };
+  socket.emit('text', m);
+  render(m, true);
+}
+
+socket.on('text', (m) => render(m, false));
+socket.on('ack', (id) => {
+  const el = statusEls[id];
+  if (el) { el.textContent = 'They confirmed this'; el.classList.add('ok'); }
+});
+
+function render(m, mine) {
+  $('empty')?.remove();
+  const box = document.createElement('div');
+  box.className = 'msg' + (mine ? ' mine' : '');
+  if (m.kind === 'spell') {
+    const tiles = document.createElement('div');
+    tiles.className = 'tiles';
+    for (const ch of m.text) {
+      if (ch === ' ') { const g = document.createElement('span'); g.className = 'gap'; tiles.append(g); continue; }
+      const t = document.createElement('div');
+      t.className = 'tile';
+      const phon = NATO[ch] || DIGITS[ch] || '';
+      t.innerHTML = '<span class="ch"></span><span class="ph"></span>';
+      t.querySelector('.ch').textContent = ch;
+      t.querySelector('.ph').textContent = phon;
+      tiles.append(t);
+    }
+    box.append(tiles);
+    if (mine) {
+      const s = document.createElement('span');
+      s.className = 'meta'; s.textContent = 'Waiting for them to confirm';
+      statusEls[m.id] = s; box.append(s);
+    } else {
+      const b = document.createElement('button');
+      b.className = 'gotit'; b.textContent = 'Got it';
+      b.onclick = () => {
+        socket.emit('ack', m.id);
+        b.replaceWith(Object.assign(document.createElement('span'), { className: 'meta ok', textContent: 'You confirmed this' }));
+      };
+      box.append(b);
+    }
+  } else {
+    box.textContent = m.text;
+  }
+  $('feed').append(box);
+  $('feed').scrollTop = $('feed').scrollHeight;
+}
+
+/* ---------- Suggestions from the speaker's own voice ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, pending = null;
+
+$('listenToggle').onchange = () => {
+  if (!SR) { $('listenToggle').checked = false; $('listenState').textContent = 'Not supported in this browser. Use Chrome.'; return; }
+  if ($('listenToggle').checked) startListening(); else stopListening();
+};
+
+function startListening() {
+  rec = new SR();
+  rec.continuous = true; rec.interimResults = false; rec.lang = 'en-IN';
+  rec.onresult = (e) => suggestFrom(e.results[e.results.length - 1][0].transcript);
+  rec.onend = () => { if ($('listenToggle').checked) { try { rec.start(); } catch (e) {} } };
+  rec.onerror = () => {};
+  try { rec.start(); $('listenState').textContent = 'Listening to you'; } catch (e) {}
+}
+function stopListening() { rec && (rec.onend = null, rec.stop()); $('listenState').textContent = ''; }
+
+function suggestFrom(transcript) {
+  const words = transcript.trim().split(/[\s-]+/).filter(Boolean);
+  const found = [];
+  for (const w of words) {
+    const clean = w.replace(/[.,!?]/g, '');
+    const low = clean.toLowerCase();
+    if (/^[a-z]$/i.test(clean) || /^\d+$/.test(clean)) found.push(clean.toUpperCase());
+    else if (NATO_REV[low]) found.push(NATO_REV[low]);
+    else if (NUM_REV[low] != null) found.push(NUM_REV[low]);
+  }
+  const joined = found.join('');
+  // Only suggest when most of what was said looks like letters/numbers, to avoid false alarms.
+  if (joined.length >= 2 && found.length / words.length >= 0.5) {
+    pending = joined;
+    $('suggestText').textContent = 'Send "' + joined.split('').join(' ') + '" as spelled-out text?';
+    $('suggest').classList.remove('hidden');
+  }
+}
+$('suggestYes').onclick = () => { if (pending) sendMessage('spell', pending); pending = null; $('suggest').classList.add('hidden'); };
+$('suggestNo').onclick = () => { pending = null; $('suggest').classList.add('hidden'); };
+</script>
+</body>
+</html>
